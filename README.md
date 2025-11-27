@@ -1,4 +1,4 @@
-# Ethiopian Banking Apps: Customer Sentiment Analysis
+# Fintech App Review Analysis 
 
 A comprehensive analysis of customer reviews for Ethiopian mobile banking applications, focusing on sentiment analysis and thematic insights to improve customer satisfaction.
 
@@ -36,13 +36,13 @@ Reviews are collected using the `google-play-scraper` library with the following
 
 ### Statistics
 
-| Metric | Value |
-|--------|-------|
-| Total Reviews Scraped | 1,500 |
-| English Reviews (Cleaned) | 797 |
-| Banks Covered | 3 |
-| Average Rating | 3.40/5 |
-| Date Range | 2022-07-16 to 2025-11-26 |
+| Metric                    | Value                    |
+| ------------------------- | ------------------------ |
+| Total Reviews Scraped     | 1,500                    |
+| English Reviews (Cleaned) | 797                      |
+| Banks Covered             | 3                        |
+| Average Rating            | 3.40/5                   |
+| Date Range                | 2022-07-16 to 2025-11-26 |
 
 **Reviews per Bank (English only):**
 - Commercial Bank of Ethiopia: 231 reviews
