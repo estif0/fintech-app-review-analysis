@@ -388,8 +388,17 @@ class TestDataSaving:
     """Test data saving functionality."""
 
     def test_save_cleaned_data(self, preprocessor, tmp_path):
-        """Test saving cleaned data to CSV."""
-        df = pd.DataFrame({"review": ["Text1", "Text2"], "rating": [5, 4]})
+        """Test saving cleaned data to CSV with required columns."""
+        df = pd.DataFrame(
+            {
+                "review": ["Text1", "Text2"],
+                "rating": [5, 4],
+                "date": ["2024-01-01", "2024-01-02"],
+                "bank": ["CBE", "BOA"],
+                "source": ["Google Play", "Google Play"],
+                "extra_column": ["data1", "data2"],  # Should not be saved
+            }
+        )
         preprocessor.df = df
 
         filepath = preprocessor.save_cleaned_data(
@@ -399,6 +408,9 @@ class TestDataSaving:
         assert filepath.exists()
         saved_df = pd.read_csv(filepath)
         assert len(saved_df) == 2
+        # Verify only required columns are saved
+        assert list(saved_df.columns) == ["review", "rating", "date", "bank", "source"]
+        assert "extra_column" not in saved_df.columns
 
     def test_save_cleaned_data_no_data(self, preprocessor):
         """Test saving when no data is available."""

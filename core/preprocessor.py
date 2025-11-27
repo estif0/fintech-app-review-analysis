@@ -566,7 +566,9 @@ class ReviewPreprocessor:
         directory: Optional[Path] = None,
     ) -> Path:
         """
-        Save cleaned data to CSV file.
+        Save cleaned data to CSV file with standardized columns.
+
+        Only saves the essential columns: review, rating, date, bank, source
 
         Args:
             df (Optional[pd.DataFrame]): DataFrame to save. If None, uses self.df
@@ -591,10 +593,27 @@ class ReviewPreprocessor:
         directory = directory or self.config.PROCESSED_DATA_DIR
         directory.mkdir(parents=True, exist_ok=True)
 
-        filepath = directory / filename
-        df.to_csv(filepath, index=False)
+        # Select only the required columns in the correct order
+        required_columns = ["review", "rating", "date", "bank", "source"]
 
-        self.logger.info(f"Saved {len(df)} cleaned reviews to {filepath}")
+        # Check which columns exist
+        available_columns = [col for col in required_columns if col in df.columns]
+
+        if len(available_columns) < len(required_columns):
+            missing = set(required_columns) - set(available_columns)
+            self.logger.warning(
+                f"Missing columns: {missing}. Saving available columns only."
+            )
+
+        # Save only the required columns
+        df_to_save = df[available_columns].copy()
+
+        filepath = directory / filename
+        df_to_save.to_csv(filepath, index=False)
+
+        self.logger.info(
+            f"Saved {len(df_to_save)} cleaned reviews with {len(available_columns)} columns to {filepath}"
+        )
 
         return filepath
 
