@@ -35,8 +35,8 @@ class Config:
     # Bank Application IDs on Google Play Store
     BANK_APP_IDS: Dict[str, str] = {
         "CBE": "com.combanketh.mobilebanking",  # Commercial Bank of Ethiopia
-        "BOA": "com.boa.boamobilebanking",  # Bank of Abyssinia
-        "Dashen": "com.dashenbank.amanu",  # Dashen Bank
+        "BOA": "com.boa.boaMobileBanking",  # Bank of Abyssinia
+        "Dashen": "com.cr2.amolelight",  # Dashen Bank
     }
 
     # Full bank names for display purposes
