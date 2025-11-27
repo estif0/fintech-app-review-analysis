@@ -36,7 +36,7 @@ class Config:
     BANK_APP_IDS: Dict[str, str] = {
         "CBE": "com.combanketh.mobilebanking",  # Commercial Bank of Ethiopia
         "BOA": "com.boa.boaMobileBanking",  # Bank of Abyssinia
-        "Dashen": "com.cr2.amolelight",  # Dashen Bank
+        "Dashen": "com.dashen.dashensuperapp",  # Dashen Bank
     }
 
     # Full bank names for display purposes
