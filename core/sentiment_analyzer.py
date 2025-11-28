@@ -46,7 +46,10 @@ class SentimentAnalyzer:
     """
 
     def __init__(
-        self, positive_threshold: float = 0.05, negative_threshold: float = -0.05
+        self,
+        positive_threshold: float = 0.05,
+        negative_threshold: float = -0.05,
+        use_rating_boost: bool = True,
     ) -> None:
         """
         Initialize the SentimentAnalyzer with VADER.
@@ -56,6 +59,8 @@ class SentimentAnalyzer:
                 Defaults to 0.05 (VADER recommended).
             negative_threshold (float): Maximum compound score for negative sentiment.
                 Defaults to -0.05 (VADER recommended).
+            use_rating_boost (bool): Whether to use rating-based adjustments.
+                Defaults to True.
 
         Raises:
             ValueError: If thresholds are invalid (positive <= negative)
@@ -69,11 +74,46 @@ class SentimentAnalyzer:
         self.analyzer = SentimentIntensityAnalyzer()
         self.positive_threshold = positive_threshold
         self.negative_threshold = negative_threshold
+        self.use_rating_boost = use_rating_boost
         self.logger = self._setup_logger()
+
+        # Define negative problem indicators for banking apps
+        self.negative_patterns = [
+            "not working",
+            "doesn't work",
+            "doesnt work",
+            "won't work",
+            "wont work",
+            "can't",
+            "cant",
+            "couldn't",
+            "couldnt",
+            "worst",
+            "terrible",
+            "horrible",
+            "awful",
+            "crash",
+            "bug",
+            "broken",
+            "fail",
+            "problem",
+            "issue",
+            "slow",
+            "loading",
+            "freeze",
+            "stuck",
+            "error",
+            "useless",
+            "waste",
+            "disappointed",
+            "frustrated",
+            "frustrating",
+        ]
 
         self.logger.info(
             f"SentimentAnalyzer initialized with thresholds: "
-            f"positive={positive_threshold}, negative={negative_threshold}"
+            f"positive={positive_threshold}, negative={negative_threshold}, "
+            f"rating_boost={use_rating_boost}"
         )
 
     def _setup_logger(self) -> logging.Logger:
@@ -94,15 +134,18 @@ class SentimentAnalyzer:
             logger.setLevel(logging.INFO)
         return logger
 
-    def analyze_text(self, text: str) -> Dict[str, any]:
+    def analyze_text(self, text: str, rating: Optional[int] = None) -> Dict[str, any]:
         """
         Analyze sentiment of a single text string.
 
         Uses VADER to compute sentiment scores and classify the text as
-        Positive, Negative, or Neutral based on the compound score.
+        Positive, Negative, or Neutral. Optionally incorporates rating
+        information for improved accuracy.
 
         Args:
             text (str): The text to analyze
+            rating (Optional[int]): Star rating (1-5) if available. Used to
+                adjust sentiment classification for edge cases.
 
         Returns:
             Dict[str, any]: Dictionary containing:
@@ -111,6 +154,7 @@ class SentimentAnalyzer:
                 - pos_score (float): Positive sentiment component (0-1)
                 - neu_score (float): Neutral sentiment component (0-1)
                 - neg_score (float): Negative sentiment component (0-1)
+                - rating_adjusted (bool): Whether rating influenced classification
 
         Example:
             >>> analyzer = SentimentAnalyzer()
@@ -126,11 +170,13 @@ class SentimentAnalyzer:
                 "pos_score": 0.0,
                 "neu_score": 1.0,
                 "neg_score": 0.0,
+                "rating_adjusted": False,
             }
 
         # Get sentiment scores from VADER
         scores = self.analyzer.polarity_scores(text)
         compound_score = scores["compound"]
+        rating_adjusted = False
 
         # Classify sentiment based on compound score
         if compound_score >= self.positive_threshold:
@@ -140,22 +186,69 @@ class SentimentAnalyzer:
         else:
             label = "Neutral"
 
+        # Apply rating-based adjustment if enabled and rating provided
+        if self.use_rating_boost and rating is not None:
+            original_label = label
+
+            # Check for negative problem patterns in text
+            text_lower = text.lower()
+            has_negative_pattern = any(
+                pattern in text_lower for pattern in self.negative_patterns
+            )
+
+            # Adjust sentiment based on rating and patterns
+            if rating <= 2:
+                # 1-2 star reviews should be negative
+                if label != "Negative":
+                    # Strong override for 1-star + negative patterns
+                    if rating == 1 and has_negative_pattern:
+                        label = "Negative"
+                        rating_adjusted = True
+                    # Moderate override for low rating + neutral/weak positive
+                    elif rating <= 2 and compound_score < 0.5:
+                        label = "Negative"
+                        rating_adjusted = True
+
+            elif rating >= 4:
+                # 4-5 star reviews should be positive
+                if label == "Neutral" and compound_score > -0.3:
+                    label = "Positive"
+                    rating_adjusted = True
+                # Don't override clearly negative high-star reviews (sarcasm/complaints)
+                elif label == "Negative" and compound_score < -0.5:
+                    pass  # Keep as negative (likely legitimate complaint)
+
+            # Adjust compound score if classification changed
+            if rating_adjusted and label != original_label:
+                if label == "Negative" and compound_score >= 0:
+                    # Adjust score to match negative classification
+                    compound_score = min(compound_score, self.negative_threshold - 0.05)
+                elif label == "Positive" and compound_score <= 0:
+                    # Adjust score to match positive classification
+                    compound_score = max(compound_score, self.positive_threshold + 0.05)
+
         return {
             "sentiment_score": round(compound_score, 4),
             "sentiment_label": label,
             "pos_score": round(scores["pos"], 4),
             "neu_score": round(scores["neu"], 4),
             "neg_score": round(scores["neg"], 4),
+            "rating_adjusted": rating_adjusted,
         }
 
     def analyze_reviews(
-        self, reviews: List[str], show_progress: bool = True
+        self,
+        reviews: List[str],
+        ratings: Optional[List[int]] = None,
+        show_progress: bool = True,
     ) -> List[Dict[str, any]]:
         """
         Analyze sentiment for a list of reviews.
 
         Args:
             reviews (List[str]): List of review texts to analyze
+            ratings (Optional[List[int]]): List of ratings corresponding to reviews.
+                If provided, used to improve sentiment classification.
             show_progress (bool): Whether to show progress messages. Defaults to True.
 
         Returns:
@@ -164,7 +257,8 @@ class SentimentAnalyzer:
         Example:
             >>> analyzer = SentimentAnalyzer()
             >>> reviews = ["Great app!", "Terrible bugs", "It's okay"]
-            >>> results = analyzer.analyze_reviews(reviews)
+            >>> ratings = [5, 1, 3]
+            >>> results = analyzer.analyze_reviews(reviews, ratings)
             >>> len(results)
             3
         """
@@ -173,7 +267,8 @@ class SentimentAnalyzer:
 
         results = []
         for idx, review in enumerate(reviews):
-            result = self.analyze_text(review)
+            rating = ratings[idx] if ratings and idx < len(ratings) else None
+            result = self.analyze_text(review, rating)
             results.append(result)
 
             # Log progress every 100 reviews
@@ -181,14 +276,24 @@ class SentimentAnalyzer:
                 self.logger.info(f"Processed {idx + 1}/{len(reviews)} reviews")
 
         if show_progress:
+            # Count rating adjustments
+            adjusted_count = sum(1 for r in results if r.get("rating_adjusted", False))
             self.logger.info(
                 f"✓ Completed sentiment analysis for {len(reviews)} reviews"
             )
+            if adjusted_count > 0:
+                self.logger.info(
+                    f"  Rating-based adjustments applied: {adjusted_count} reviews"
+                )
 
         return results
 
     def analyze_dataframe(
-        self, df: pd.DataFrame, text_column: str = "review", show_progress: bool = True
+        self,
+        df: pd.DataFrame,
+        text_column: str = "review",
+        rating_column: Optional[str] = "rating",
+        show_progress: bool = True,
     ) -> pd.DataFrame:
         """
         Analyze sentiment for reviews in a pandas DataFrame.
@@ -199,11 +304,14 @@ class SentimentAnalyzer:
         - pos_score: Positive component score
         - neu_score: Neutral component score
         - neg_score: Negative component score
+        - rating_adjusted: Whether rating influenced classification
 
         Args:
             df (pd.DataFrame): DataFrame containing reviews
             text_column (str): Name of the column containing review text.
                 Defaults to 'review'.
+            rating_column (Optional[str]): Name of rating column for hybrid analysis.
+                Defaults to 'rating'. Set to None to disable rating boost.
             show_progress (bool): Whether to show progress messages. Defaults to True.
 
         Returns:
@@ -214,7 +322,7 @@ class SentimentAnalyzer:
 
         Example:
             >>> analyzer = SentimentAnalyzer()
-            >>> df = pd.DataFrame({'review': ["Great!", "Bad!"]})
+            >>> df = pd.DataFrame({'review': ["Great!", "Bad!"], 'rating': [5, 1]})
             >>> df_analyzed = analyzer.analyze_dataframe(df)
             >>> 'sentiment_label' in df_analyzed.columns
             True
@@ -228,9 +336,18 @@ class SentimentAnalyzer:
         if show_progress:
             self.logger.info(f"Analyzing {len(df)} reviews from DataFrame...")
 
-        # Analyze all reviews
+        # Get reviews and ratings
         reviews = df[text_column].tolist()
-        results = self.analyze_reviews(reviews, show_progress=show_progress)
+        ratings = None
+        if rating_column and rating_column in df.columns:
+            ratings = df[rating_column].tolist()
+            if show_progress:
+                self.logger.info(
+                    f"Using rating column '{rating_column}' for hybrid analysis"
+                )
+
+        # Analyze all reviews
+        results = self.analyze_reviews(reviews, ratings, show_progress=show_progress)
 
         # Add sentiment columns to DataFrame
         df_copy = df.copy()
@@ -239,6 +356,7 @@ class SentimentAnalyzer:
         df_copy["pos_score"] = [r["pos_score"] for r in results]
         df_copy["neu_score"] = [r["neu_score"] for r in results]
         df_copy["neg_score"] = [r["neg_score"] for r in results]
+        df_copy["rating_adjusted"] = [r.get("rating_adjusted", False) for r in results]
 
         if show_progress:
             self.logger.info("✓ Sentiment columns added to DataFrame")
