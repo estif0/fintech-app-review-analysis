@@ -642,7 +642,7 @@ class ReviewPreprocessor:
 
         if not report:
             self.logger.warning("No quality report available")
-            return None
+            return None  # type: ignore
 
         directory = directory or self.config.PROCESSED_DATA_DIR
         directory.mkdir(parents=True, exist_ok=True)
