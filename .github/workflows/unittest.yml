@@ -31,6 +31,10 @@ jobs:
                   python -m pip install --upgrade pip
                   pip install -r requirements.txt
 
+            - name: Download NLTK data
+              run: |
+                  python -m nltk.downloader punkt punkt_tab wordnet omw-1.4 stopwords
+
             - name: Run Tests
               run: |
                   pytest tests/
