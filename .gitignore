@@ -216,5 +216,10 @@ data/
 *.csv
 *.db
 *.sqlite
-*.sql
+
+# Database - exclude data dumps but keep schema files
+database/full_dump.sql
+database/*_data_dump.sql
+database/backup_*.sql
+
 .env
